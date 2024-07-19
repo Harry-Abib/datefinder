@@ -36,7 +36,10 @@ class DateFinder(object):
             text, strict=strict
         ):
 
+            logger.info(f"find_dates - date_string: {date_string}")
+            logger.info(f"find_dates - captures: {captures}")
             as_dt = self.parse_date_string(date_string, captures)
+            logger.info(f"find_dates - as_dt: {as_dt}")
             if as_dt is None:
                 ## Dateutil couldn't make heads or tails of it
                 ## move on to next
@@ -50,6 +53,7 @@ class DateFinder(object):
 
             if len(returnables) == 1:
                 returnables = returnables[0]
+            logger.info(f"find_dates - returnables: {returnables}")
             yield returnables
 
     def _find_and_replace(self, date_string, captures):
@@ -117,6 +121,7 @@ class DateFinder(object):
                 default=self.base_date,
                 dayfirst=self.dayfirst,
                 yearfirst=self.yearfirst,
+                tzinfos={"UTC": tz.gettz("UTC")}
             )
         except (ValueError, OverflowError):
             # replace tokens that are problematic for dateutil
@@ -131,12 +136,35 @@ class DateFinder(object):
 
             try:
                 logger.debug("Parsing {0} with dateutil".format(date_string))
-                as_dt = parser.parse(
-                    date_string,
-                    default=self.base_date,
-                    dayfirst=self.dayfirst,
-                    yearfirst=self.yearfirst,
-                )
+
+                logger.info(f"date_string: {date_string}")
+
+                try:
+                    as_dt = parser.parse(
+                        date_string,
+                        default=self.base_date,
+                        dayfirst=self.dayfirst,
+                        yearfirst=self.yearfirst,
+                        tzinfos={"UTC": tz.gettz("UTC")}
+                    )
+                except parser.ParserError as e:
+                    logger.debug(e)
+                    as_dt = None
+                    if "day is out of range" in str(e):
+                        parts = date_string.split()
+                        logger.debug(parts)
+                        if len(parts) == 3:
+                            day, month, year = parts
+                            date_string = f"{month} {year}"
+                            logger.debug(date_string)
+                            as_dt = parser.parse(
+                                date_string,
+                                default=self.base_date,
+                                dayfirst=self.dayfirst,
+                                yearfirst=self.yearfirst,
+                                tzinfos={"UTC": tz.gettz("UTC")}
+                            )
+
             except Exception as e:
                 logger.debug(e)
                 as_dt = None
